@@ -8,5 +8,8 @@ title page has FM_Logo.png in the left top corner with half inch padding
 title page has FM_Car.png in the lower right corner without padding
 in the center of title page it sais "Регламент соревнований v1.02"
 
-a table of contents and all links in the MD files should be working inside the PDF
+after the title page there should be a table of contents page
 
+all links in the MD files should be working inside the PDF and should be visible
+
+each MD file should start with a new page in the PDF
