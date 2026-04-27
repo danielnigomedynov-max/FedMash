@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import argparse
 import re
+import shutil
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -28,6 +30,8 @@ from reportlab.platypus import (
     PageTemplate,
     Paragraph,
     Spacer,
+    Table,
+    TableStyle,
 )
 from xml.sax.saxutils import escape
 
@@ -37,6 +41,7 @@ ASSETS_DIR = Path(__file__).resolve().parent
 
 TITLE_TEXT = "Регламент соревнований v1.02"
 NUMBERED_MD_RE = re.compile(r"^(\d+)\.\s+(.+)\.md$", re.IGNORECASE)
+sys.dont_write_bytecode = True
 
 
 @dataclass
@@ -170,6 +175,42 @@ def html_block_to_story(node: Tag, styles: StyleSheet1) -> list[Flowable]:
             flows.append(Paragraph(f"{bullet} {body}", styles["Body"]))
             idx += 1
         flows.append(Spacer(1, 4))
+        return flows
+
+    if node_name == "table":
+        rows: list[list[Paragraph]] = []
+        for tr in node.find_all("tr"):
+            cells: list[Paragraph] = []
+            for cell in tr.find_all(["th", "td"], recursive=False):
+                cell_html = normalize_inline_markup(cell.decode_contents().strip())
+                if not cell_html:
+                    cell_html = " "
+                cells.append(Paragraph(cell_html, styles["Body"]))
+            if cells:
+                rows.append(cells)
+
+        if rows:
+            max_cols = max(len(r) for r in rows)
+            for row in rows:
+                while len(row) < max_cols:
+                    row.append(Paragraph(" ", styles["Body"]))
+
+            table = Table(rows, repeatRows=1)
+            table.setStyle(
+                TableStyle(
+                    [
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#888888")),
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#efefef")),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                        ("TOPPADDING", (0, 0), (-1, -1), 3),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                    ]
+                )
+            )
+            flows.append(table)
+            flows.append(Spacer(1, 6))
         return flows
 
     if node_name == "pre":
@@ -334,7 +375,6 @@ def draw_title_page(canvas, _doc) -> None:
 def draw_body_page(canvas, doc) -> None:
     canvas.saveState()
     page_width, page_height = A4
-    page_no = canvas.getPageNumber()
 
     watermark_path = str(ASSETS_DIR / "FM_Logo.png")
     canvas.setFillAlpha(0.10)
@@ -348,6 +388,13 @@ def draw_body_page(canvas, doc) -> None:
         mask="auto",
     )
     canvas.setFillAlpha(1.0)
+    canvas.restoreState()
+
+
+def draw_body_page_end(canvas, doc) -> None:
+    canvas.saveState()
+    page_width, page_height = A4
+    page_no = canvas.getPageNumber()
 
     header_text = getattr(doc, "current_section", "")
     canvas.setFont("Jost", 9)
@@ -373,6 +420,15 @@ def validate_assets() -> None:
     missing = [path for path in required if not path.exists()]
     if missing:
         raise FileNotFoundError(f"Missing required assets: {', '.join(str(item) for item in missing)}")
+
+
+def clean_caches(root: Path) -> int:
+    removed = 0
+    for cache_dir in root.rglob("__pycache__"):
+        if cache_dir.is_dir():
+            shutil.rmtree(cache_dir, ignore_errors=True)
+            removed += 1
+    return removed
 
 
 def parse_args() -> argparse.Namespace:
@@ -406,7 +462,7 @@ def build_pdf(output_path: Path, sections: list[Section]) -> None:
 
     frame = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id="content-frame")
     title_template = PageTemplate(id="Title", frames=[frame], onPage=draw_title_page)
-    body_template = PageTemplate(id="Body", frames=[frame], onPage=draw_body_page)
+    body_template = PageTemplate(id="Body", frames=[frame], onPage=draw_body_page, onPageEnd=draw_body_page_end)
     doc.addPageTemplates([title_template, body_template])
     doc.afterFlowable = lambda flowable: after_flowable(doc, flowable)
     doc.current_section = ""
@@ -417,6 +473,7 @@ def build_pdf(output_path: Path, sections: list[Section]) -> None:
 
 def main() -> None:
     args = parse_args()
+    removed_cache_dirs = clean_caches(ROOT)
     validate_assets()
     section_files = discover_sections(ROOT)
     if not section_files:
@@ -427,6 +484,7 @@ def main() -> None:
     build_pdf(output_path, sections)
     print(f"Generated: {output_path}")
     print(f"Sections included: {len(sections)}")
+    print(f"Cache folders removed: {removed_cache_dirs}")
 
 
 if __name__ == "__main__":
