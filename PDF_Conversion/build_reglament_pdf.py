@@ -83,8 +83,8 @@ def md_basename_to_slug(path: Path) -> str:
 def resolve_section_title(md_text: str, fallback_name: str) -> str:
     for line in md_text.splitlines():
         line = line.strip()
-        if line.startswith("#"):
-            return line.lstrip("#").strip()
+        if re.match(r"^#\s+.+", line):
+            return re.sub(r"^#\s+", "", line).strip()
     return re.sub(r"^\d+\.\s+", "", fallback_name)
 
 
@@ -373,28 +373,27 @@ def draw_title_page(canvas, _doc) -> None:
 
 
 def draw_body_page(canvas, doc) -> None:
-    canvas.saveState()
-    page_width, page_height = A4
-
-    watermark_path = str(ASSETS_DIR / "FM_Logo.png")
-    canvas.setFillAlpha(0.10)
-    canvas.drawImage(
-        watermark_path,
-        0.1 * inch,
-        0.1 * inch,
-        width=1.2 * inch,
-        height=1.2 * inch,
-        preserveAspectRatio=True,
-        mask="auto",
-    )
-    canvas.setFillAlpha(1.0)
-    canvas.restoreState()
+    return
 
 
 def draw_body_page_end(canvas, doc) -> None:
     canvas.saveState()
     page_width, page_height = A4
     page_no = canvas.getPageNumber()
+    canvas.resetTransforms()
+
+    watermark_path = str(ASSETS_DIR / "FM_Logo.png")
+    canvas.setFillAlpha(0.10)
+    canvas.drawImage(
+        watermark_path,
+        0.25 * inch,
+        0.25 * inch,
+        width=1.2 * inch,
+        height=1.2 * inch,
+        preserveAspectRatio=True,
+        mask="auto",
+    )
+    canvas.setFillAlpha(1.0)
 
     header_text = getattr(doc, "current_section", "")
     canvas.setFont("Jost", 9)
