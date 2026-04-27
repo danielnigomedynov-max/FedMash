@@ -6,7 +6,7 @@ PDF should have A4 page size
 PDF should start with a title page
 title page has FM_Logo.png in the left top corner with half inch padding
 title page has FM_Car.png in the lower right corner without padding
-in the center of title page it sais "Регламент соревнований v1.02"
+in the center of title page it says "Регламент соревнований v1.02"
 
 after the title page there should be a table of contents page
 
