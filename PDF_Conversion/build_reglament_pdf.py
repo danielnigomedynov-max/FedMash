@@ -117,7 +117,44 @@ def sanitize_html_for_reportlab(soup: BeautifulSoup) -> None:
         tag.attrs = {}
 
 
+def normalize_markdown_nested_lists(md_text: str) -> str:
+    lines = md_text.splitlines()
+    out: list[str] = []
+    inside_ordered_item = False
+    seen_nested_under_current_item = False
+
+    for line in lines:
+        if re.match(r"^\d+\.\s+.+", line):
+            if inside_ordered_item and seen_nested_under_current_item and out and out[-1].strip():
+                out.append("")
+            inside_ordered_item = True
+            seen_nested_under_current_item = False
+            out.append(line)
+            continue
+
+        if inside_ordered_item and re.match(r"^\s{2,}-\s+.+", line):
+            nested_line = re.sub(r"^\s*-\s+", "    - ", line)
+            if not seen_nested_under_current_item and out and out[-1].strip():
+                out.append("")
+            out.append(nested_line)
+            seen_nested_under_current_item = True
+            continue
+
+        if line.strip() == "":
+            out.append(line)
+            continue
+
+        if re.match(r"^\S", line):
+            inside_ordered_item = False
+            seen_nested_under_current_item = False
+
+        out.append(line)
+
+    return "\n".join(out)
+
+
 def markdown_to_html(md_text: str, md_to_anchor: dict[str, str]) -> str:
+    md_text = normalize_markdown_nested_lists(md_text)
     raw_html = markdown.markdown(
         md_text,
         extensions=["extra", "tables", "sane_lists", "fenced_code"],

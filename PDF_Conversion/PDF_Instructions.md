@@ -47,6 +47,8 @@ the script and required files should be in the same folder as this instruction (
 - preserve external links (`http`, `https`, `mailto`)
 - convert links to other project markdown files to internal PDF section links when possible
 - markdown tables must be rendered as actual PDF tables (not plain text)
+- normalize markdown list formatting before rendering so mixed ordered + nested bullet lists render correctly
+- after nested list blocks, following top-level list items must start on a new line
 
 ## repeated page elements (all pages except title page)
 - header with the current section name (must match the same page, not delayed by one page)
