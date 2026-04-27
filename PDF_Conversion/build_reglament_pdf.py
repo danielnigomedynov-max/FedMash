@@ -129,17 +129,26 @@ def markdown_to_html(md_text: str, md_to_anchor: dict[str, str]) -> str:
     return str(soup)
 
 
+def remove_first_h1_from_html(html_text: str) -> str:
+    soup = BeautifulSoup(html_text, "html.parser")
+    first_h1 = soup.find("h1")
+    if first_h1 is not None:
+        first_h1.decompose()
+    return str(soup)
+
+
 def build_sections(files: list[Path]) -> list[Section]:
     md_to_anchor = {file_path.name: f"section-{md_basename_to_slug(file_path)}" for file_path in files}
     sections: list[Section] = []
     for file_path in files:
         md_text = file_path.read_text(encoding="utf-8")
+        section_html = markdown_to_html(md_text, md_to_anchor)
         sections.append(
             Section(
                 file_path=file_path,
                 section_id=md_to_anchor[file_path.name],
                 title=resolve_section_title(md_text, file_path.stem),
-                html_body=markdown_to_html(md_text, md_to_anchor),
+                html_body=remove_first_h1_from_html(section_html),
             )
         )
     return sections
@@ -308,10 +317,10 @@ def build_story(sections: list[Section], styles: StyleSheet1) -> list[Flowable]:
 
     story.append(SectionMarker("Содержание"))
     story.append(Paragraph("Содержание", styles["H1"]))
-    for index, section in enumerate(sections, start=1):
+    for section in sections:
         story.append(
             Paragraph(
-                f"{index}. <link href='#{section.section_id}' color='#0b4ea2'>{section.title}</link>",
+                f"<link href='#{section.section_id}' color='#0b4ea2'>{section.title}</link>",
                 styles["TOCEntry"],
             )
         )
