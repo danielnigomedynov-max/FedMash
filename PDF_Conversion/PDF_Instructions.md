@@ -9,6 +9,7 @@ the script and required files should be in the same folder as this instruction (
 - each markdown file becomes one **section**
 - each section starts on a new page
 - section title source is only the first level-1 heading (`# ...`) from each markdown file
+- when rendering section body, remove that first level-1 heading from content to avoid duplicated main heading in the PDF
 
 ## rendering engine and dependencies
 - use a pure `reportlab` based pipeline (do not rely on `weasyprint` / GTK system libraries)
@@ -39,6 +40,7 @@ the script and required files should be in the same folder as this instruction (
 - TOC contains all sections
 - TOC entries are clickable links to the corresponding section
 - TOC section names must come from the first level-1 heading (`# ...`) only
+- TOC entries should be unnumbered (no added numeric prefix in TOC itself)
 
 ## links and markdown features
 - keep working links from markdown clickable in the PDF
