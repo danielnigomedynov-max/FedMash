@@ -1,6 +1,8 @@
 we are making a compiled set of rules for RC competitions that will be released to the public
 
 the goal is to write a script in python that creates a PDF file from all MD files in the project that are numbered
+put the script and other required stuff is the same folder as this instruction
+
 each MD file will become a **section** in the PDF
 
 PDF should have A4 page size
