@@ -160,6 +160,38 @@ def normalize_inline_markup(text: str) -> str:
     return cleaned
 
 
+def render_list_node(node: Tag, styles: StyleSheet1, level: int = 0) -> list[Flowable]:
+    flows: list[Flowable] = []
+    ordered = node.name.lower() == "ol"
+    idx = 1
+
+    for li in node.find_all("li", recursive=False):
+        li_soup = BeautifulSoup(str(li), "html.parser")
+        li_clone = li_soup.find("li")
+        if li_clone is None:
+            continue
+
+        for nested in li_clone.find_all(["ul", "ol"]):
+            nested.decompose()
+        body = normalize_inline_markup(li_clone.decode_contents().strip())
+        bullet = f"{idx}." if ordered else "•"
+
+        if body:
+            list_style = ParagraphStyle(
+                f"ListLevel{level}",
+                parent=styles["Body"],
+                leftIndent=level * 14,
+            )
+            flows.append(Paragraph(f"{bullet} {body}", list_style))
+
+        for nested_list in li.find_all(["ul", "ol"], recursive=False):
+            flows.extend(render_list_node(nested_list, styles, level + 1))
+        idx += 1
+
+    flows.append(Spacer(1, 4))
+    return flows
+
+
 def html_block_to_story(node: Tag, styles: StyleSheet1) -> list[Flowable]:
     flows: list[Flowable] = []
     node_name = node.name.lower()
@@ -176,15 +208,7 @@ def html_block_to_story(node: Tag, styles: StyleSheet1) -> list[Flowable]:
         return flows
 
     if node_name in {"ul", "ol"}:
-        ordered = node_name == "ol"
-        idx = 1
-        for li in node.find_all("li", recursive=False):
-            bullet = f"{idx}." if ordered else "•"
-            body = normalize_inline_markup(li.decode_contents())
-            flows.append(Paragraph(f"{bullet} {body}", styles["Body"]))
-            idx += 1
-        flows.append(Spacer(1, 4))
-        return flows
+        return render_list_node(node, styles, level=0)
 
     if node_name == "table":
         rows: list[list[Paragraph]] = []
