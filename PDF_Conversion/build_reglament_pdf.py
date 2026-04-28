@@ -486,7 +486,7 @@ def draw_body_page_end(canvas, doc) -> None:
     canvas.setFillAlpha(0.10)
     canvas.drawImage(
         watermark_path,
-        0.25 * inch,
+        0.75 * inch,
         0.25 * inch,
         width=1.2 * inch,
         height=1.2 * inch,
