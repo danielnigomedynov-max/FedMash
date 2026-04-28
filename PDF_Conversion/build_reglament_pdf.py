@@ -88,34 +88,41 @@ def resolve_section_title(md_text: str, fallback_name: str) -> str:
     return re.sub(r"^\d+\.\s+", "", fallback_name)
 
 
-def rewrite_md_links(soup: BeautifulSoup, md_to_anchor: dict[str, str]) -> None:
+def rewrite_md_links(soup: BeautifulSoup, md_to_anchor: dict[str, str], current_section_id: str) -> None:
     for anchor in soup.find_all("a", href=True):
         href = anchor["href"].strip()
         if not href:
             continue
+
         if href.startswith(("http://", "https://", "mailto:", "#")):
             continue
+
         target, _, fragment = href.partition("#")
+
         if target.lower().endswith(".md"):
             if target in md_to_anchor:
                 if fragment:
-                    anchor["href"] = f"#{md_to_anchor[target]}"
+                    # 🔥 link to exact anchor (with section prefix safety)
+                    anchor["href"] = f"#{md_to_anchor[target]}-{fragment}"
                 else:
+                    # fallback to section start
                     anchor["href"] = f"#{md_to_anchor[target]}"
             else:
                 anchor.attrs.pop("href", None)
 
-
-def sanitize_html_for_reportlab(soup: BeautifulSoup) -> None:
+def sanitize_html_for_reportlab(soup: BeautifulSoup, section_id: str) -> None:
     allowed_a_attrs = {"href", "name", "color"}
+
     for tag in soup.find_all(True):
         if tag.name.lower() == "a":
-            if "id" in tag.attrs and "name" not in tag.attrs:
-                tag.attrs["name"] = tag.attrs["id"]
+            if "id" in tag.attrs:
+                # 🔥 prefix IDs to ensure uniqueness across document
+                prefixed = f"{section_id}-{tag.attrs['id']}"
+                tag.attrs["name"] = prefixed
             tag.attrs = {key: value for key, value in tag.attrs.items() if key in allowed_a_attrs}
             continue
-        tag.attrs = {}
 
+        tag.attrs = {}
 
 def normalize_markdown_nested_lists(md_text: str) -> str:
     lines = md_text.splitlines()
@@ -153,18 +160,21 @@ def normalize_markdown_nested_lists(md_text: str) -> str:
     return "\n".join(out)
 
 
-def markdown_to_html(md_text: str, md_to_anchor: dict[str, str]) -> str:
+def markdown_to_html(md_text: str, md_to_anchor: dict[str, str], section_id: str) -> str:
     md_text = normalize_markdown_nested_lists(md_text)
+
     raw_html = markdown.markdown(
         md_text,
         extensions=["extra", "tables", "sane_lists", "fenced_code"],
         output_format="html5",
     )
-    soup = BeautifulSoup(raw_html, "html.parser")
-    rewrite_md_links(soup, md_to_anchor)
-    sanitize_html_for_reportlab(soup)
-    return str(soup)
 
+    soup = BeautifulSoup(raw_html, "html.parser")
+
+    rewrite_md_links(soup, md_to_anchor, section_id)
+    sanitize_html_for_reportlab(soup, section_id)
+
+    return str(soup)
 
 def remove_first_h1_from_html(html_text: str) -> str:
     soup = BeautifulSoup(html_text, "html.parser")
@@ -176,20 +186,26 @@ def remove_first_h1_from_html(html_text: str) -> str:
 
 def build_sections(files: list[Path]) -> list[Section]:
     md_to_anchor = {file_path.name: f"section-{md_basename_to_slug(file_path)}" for file_path in files}
+
     sections: list[Section] = []
+
     for file_path in files:
         md_text = file_path.read_text(encoding="utf-8")
-        section_html = markdown_to_html(md_text, md_to_anchor)
+
+        section_id = md_to_anchor[file_path.name]
+
+        section_html = markdown_to_html(md_text, md_to_anchor, section_id)
+
         sections.append(
             Section(
                 file_path=file_path,
-                section_id=md_to_anchor[file_path.name],
+                section_id=section_id,
                 title=resolve_section_title(md_text, file_path.stem),
                 html_body=remove_first_h1_from_html(section_html),
             )
         )
-    return sections
 
+    return sections
 
 def normalize_inline_markup(text: str) -> str:
     cleaned = text.replace("<strong>", "<b>").replace("</strong>", "</b>")
@@ -232,6 +248,12 @@ def render_list_node(node: Tag, styles: StyleSheet1, level: int = 0) -> list[Flo
 def html_block_to_story(node: Tag, styles: StyleSheet1) -> list[Flowable]:
     flows: list[Flowable] = []
     node_name = node.name.lower()
+    
+    # 🔥 HANDLE ANCHORS
+    if node_name == "a" and node.has_attr("name"):
+        anchor_name = node["name"]
+        flows.append(Paragraph(f'<a name="{anchor_name}"/>', styles["Body"]))
+        return flows
 
     if node_name in {"h1", "h2", "h3"}:
         style = styles["H1"] if node_name == "h1" else styles["H2"] if node_name == "h2" else styles["H3"]
@@ -312,7 +334,7 @@ def make_styles() -> StyleSheet1:
             parent=styles["Normal"],
             fontName="Jost",
             fontSize=11,
-            leading=15,
+            leading=13,
             spaceAfter=3,
             linkColor=colors.HexColor("#0b4ea2"),
         )
@@ -367,6 +389,18 @@ def make_styles() -> StyleSheet1:
             spaceAfter=6,
         )
     )
+    styles.add(
+        ParagraphStyle(
+            name="Link",
+            parent=styles["Normal"],
+            fontName="Jost",
+            fontSize=11,
+            leading=13,
+            spaceAfter=3,
+            linkColor=colors.HexColor("#0b4ea2"),
+        )
+    )
+
     return styles
 
 
@@ -390,9 +424,11 @@ def build_story(sections: list[Section], styles: StyleSheet1) -> list[Flowable]:
     for idx, section in enumerate(sections):
         if idx > 0:
             story.append(PageBreak())
+        
         story.append(SectionMarker(section.title))
-        story.append(Paragraph(f"<a name='{section.section_id}'/>{section.title}", styles["H1"]))
-
+        # 🔥 Explicit anchor before title
+        story.append(Paragraph(f"<a name='{section.section_id}'/>", styles["Body"]))
+        story.append(Paragraph(section.title, styles["H1"]))
         soup = BeautifulSoup(section.html_body, "html.parser")
         for node in soup.children:
             if not isinstance(node, Tag):
