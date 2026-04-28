@@ -389,17 +389,6 @@ def make_styles() -> StyleSheet1:
             spaceAfter=6,
         )
     )
-    styles.add(
-        ParagraphStyle(
-            name="Link",
-            parent=styles["Normal"],
-            fontName="Jost",
-            fontSize=11,
-            leading=13,
-            spaceAfter=3,
-            linkColor=colors.HexColor("#0b4ea2"),
-        )
-    )
 
     return styles
 
