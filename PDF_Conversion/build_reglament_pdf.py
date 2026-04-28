@@ -115,11 +115,16 @@ def sanitize_html_for_reportlab(soup: BeautifulSoup, section_id: str) -> None:
 
     for tag in soup.find_all(True):
         if tag.name.lower() == "a":
+            # preserve anchors
             if "id" in tag.attrs:
-                # 🔥 prefix IDs to ensure uniqueness across document
                 prefixed = f"{section_id}-{tag.attrs['id']}"
                 tag.attrs["name"] = prefixed
-            tag.attrs = {key: value for key, value in tag.attrs.items() if key in allowed_a_attrs}
+
+            # 🔥 STYLE LINKS (only if it's a clickable link)
+            if "href" in tag.attrs:
+                tag.attrs["color"] = "#0b4ea2"
+
+            tag.attrs = {k: v for k, v in tag.attrs.items() if k in allowed_a_attrs}
             continue
 
         tag.attrs = {}
