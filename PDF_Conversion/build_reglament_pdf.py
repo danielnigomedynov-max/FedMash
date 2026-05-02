@@ -339,7 +339,7 @@ def make_styles() -> StyleSheet1:
             parent=styles["Normal"],
             fontName="Jost",
             fontSize=11,
-            leading=13,
+            leading=12,
             spaceAfter=3,
             linkColor=colors.HexColor("#0b4ea2"),
         )
